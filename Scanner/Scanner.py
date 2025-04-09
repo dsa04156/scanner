@@ -88,8 +88,28 @@ class Scanner:
                 self.takeIt()
                 while self.currentChar.isalnum() or self.currentChar == '_':
                     self.takeIt()
-                print(self.currentLexeme)
-                return Token.ID
+                # 이제 현재까지 읽은 lexeme을 사용하여 키워드 여부를 확인합니다.
+                lexeme = self.currentLexeme
+                if lexeme == "bool":
+                    return Token.BOOL
+                elif lexeme == "else":
+                    return Token.ELSE
+                elif lexeme == "float":
+                    return Token.FLOAT
+                elif lexeme == "for":
+                    return Token.FOR
+                elif lexeme == "if":
+                    return Token.IF
+                elif lexeme == "int":
+                    return Token.INT
+                elif lexeme == "return":
+                    return Token.RETURN
+                elif lexeme == "void":
+                    return Token.VOID
+                elif lexeme == "while":
+                    return Token.WHILE
+                else:
+                    return Token.ID
             
             # 연산자 및 구분자들
             case '+':
@@ -102,8 +122,23 @@ class Scanner:
                 self.takeIt()
                 return Token.TIMES
             case '/':
-                self.takeIt()
-                return Token.DIV
+                self.takeIt()  # 첫 번째 '/' 소비
+                # peekChar() 대신에, 다음 문자를 바로 읽어 임시 변수에 저장
+                temp = self.sourceFile.readChar()
+                if temp == '/':
+                    # 주석임: 두 번째 '/'도 소비
+                    # temp를 이미 읽었으므로, currentChar 대신 이를 사용
+                    self.currentChar = temp
+                    # 주석 내용은 줄바꿈 또는 EOF가 나올 때까지 소비
+                    while self.currentChar not in ('\n', SourceFile.EOF):
+                        self.takeIt()
+                    return self.scanToken()
+                else:
+                    # 주석이 아니므로, temp를 currentChar에 할당하여 나중에 그대로 사용
+                    self.currentChar = temp
+                    return Token.DIV
+
+
             case '=':
                 self.takeIt()
                 if self.currentChar == '=':
