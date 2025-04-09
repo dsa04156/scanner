@@ -38,13 +38,11 @@ class Scanner:
 
     def scanToken(self):
         match self.currentChar:
-            # 숫자 리터럴: 정수 또는 부동소수점 숫자
             case "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9":
                 self.takeIt()
                 while self.isDigit(self.currentChar):
                     self.takeIt()
                 tokenType = Token.INTLITERAL
-
                 # 소수점 처리
                 if self.currentChar == ".":
                     tokenType = Token.FLOATLITERAL
@@ -52,44 +50,39 @@ class Scanner:
                     while self.isDigit(self.currentChar):
                         self.takeIt()
 
+                # 지수 처리 (e 또는 E)
                 if self.currentChar in ("e", "E"):
+                    # 상태 저장 (rollback 대비)
                     savedLine = self.currentLineNr
                     savedCol = self.currentColNr
                     savedChar = self.currentChar
                     savedLexeme = self.currentLexeme
 
-                    self.takeIt()  # consume 'e' or 'E'
+                    self.takeIt()  # e 또는 E 소비
 
-                    sign = ""
+                    # 부호 있으면 소비
                     if self.currentChar in ("+", "-"):
-                        sign = self.currentChar
-                        tempChar = self.sourceFile.readChar()
-                        if not self.isDigit(tempChar):
-                            print("ERROR: Malformed exponent in float literal")
-                            # 롤백
-                            self.currentLineNr = savedLine
-                            self.currentColNr = savedCol
-                            self.currentChar = savedChar
-                            self.currentLexeme = savedLexeme
-                            return tokenType
-                        else:
-                            self.takeIt()  # consume '+' or '-'
-                            self.currentChar = tempChar  # we already read the digit
+                        savedLine = self.currentLineNr
+                        savedCol = self.currentColNr
+                        savedChar = self.currentChar
+                        savedLexeme = self.currentLexeme
+                        self.takeIt()
 
-                    elif not self.isDigit(self.currentChar):
-                        print("ERROR: Malformed exponent in float literal")
-                        # 롤백
+                    # 지수 다음에 숫자가 반드시 와야 함!
+                    if not self.isDigit(self.currentChar):
+                        # 롤백 (지수 표기 전으로 복원)
                         self.currentLineNr = savedLine
                         self.currentColNr = savedCol
                         self.currentChar = savedChar
                         self.currentLexeme = savedLexeme
-                        return tokenType
+                        return tokenType  # 지수 표기 전의 INT or FLOAT 리터럴로 종료
 
-                    # now consume remaining digits
+                    # 지수 숫자 소비
                     while self.isDigit(self.currentChar):
                         self.takeIt()
 
-                    return Token.FLOATLITERAL
+                    tokenType = Token.FLOATLITERAL  # 지수까지 유효하므로 무조건 float
+
                 return tokenType
 
             # 문자열 리터럴: "로 시작하며 동일한 줄 내에서 종료되어야 함.
