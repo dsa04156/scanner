@@ -2,11 +2,12 @@ from Scanner.Token import *
 from Scanner.SourceFile import *
 from Scanner.SourcePos import *
 
+
 class Scanner:
     @staticmethod
     def isDigit(c):
-        return (c >= '0' and c <= '9')
-    
+        return c >= "0" and c <= "9"
+
     def __init__(self, source):
         self.sourceFile = source
         self.currentChar = self.sourceFile.readChar()
@@ -14,12 +15,12 @@ class Scanner:
         self.currentLineNr = 1
         self.currentColNr = 1
 
-        self.currentLexeme = ''
+        self.currentLexeme = ""
         self.currentlyScanningToken = False
-    
+
     def enableDebugging(self):
         self.verbose = True
-    
+
     # takeIt appends the current character to the current token, and gets
     # the next character from the source program (or the to-be-implemented
     # "untake" buffer in case of look-ahead characters that got 'pushed back'
@@ -28,51 +29,76 @@ class Scanner:
     def takeIt(self):
         if self.currentlyScanningToken:
             self.currentLexeme += self.currentChar
-        if self.currentChar == '\n':
+        if self.currentChar == "\n":
             self.currentLineNr += 1
             self.currentColNr = 1
         else:
             self.currentColNr += 1
         self.currentChar = self.sourceFile.readChar()
-    
+
     def scanToken(self):
         match self.currentChar:
- # 숫자 리터럴: 정수 또는 부동소수점 숫자
-            case '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9':
-                self.takeIt()    # 첫 번째 자리 숫자 소비
+            # 숫자 리터럴: 정수 또는 부동소수점 숫자
+            case "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9":
+                self.takeIt()
                 while self.isDigit(self.currentChar):
                     self.takeIt()
-                tokenType = Token.INTLITERAL  # 기본적으로 정수 토큰으로 간주
+                tokenType = Token.INTLITERAL
 
-                # 소수점 처리: 점(.)을 만나면 부동소수점 토큰으로 전환
-                if self.currentChar == '.':
+                # 소수점 처리
+                if self.currentChar == ".":
                     tokenType = Token.FLOATLITERAL
                     self.takeIt()
                     while self.isDigit(self.currentChar):
                         self.takeIt()
-                
-                # 지수(exponent) 처리: 'e' 또는 'E'를 만나면 부동소수점 토큰으로 전환
-                if self.currentChar in ('e', 'E'):
-                    tokenType = Token.FLOATLITERAL
-                    self.takeIt()
-                    if self.currentChar in ('+', '-'):
-                        self.takeIt()
-                    if not self.isDigit(self.currentChar):
+
+                if self.currentChar in ("e", "E"):
+                    savedLine = self.currentLineNr
+                    savedCol = self.currentColNr
+                    savedChar = self.currentChar
+                    savedLexeme = self.currentLexeme
+
+                    self.takeIt()  # consume 'e' or 'E'
+
+                    sign = ""
+                    if self.currentChar in ("+", "-"):
+                        sign = self.currentChar
+                        tempChar = self.sourceFile.readChar()
+                        if not self.isDigit(tempChar):
+                            print("ERROR: Malformed exponent in float literal")
+                            # 롤백
+                            self.currentLineNr = savedLine
+                            self.currentColNr = savedCol
+                            self.currentChar = savedChar
+                            self.currentLexeme = savedLexeme
+                            return tokenType
+                        else:
+                            self.takeIt()  # consume '+' or '-'
+                            self.currentChar = tempChar  # we already read the digit
+
+                    elif not self.isDigit(self.currentChar):
                         print("ERROR: Malformed exponent in float literal")
-                        return Token.FLOATLITERAL
+                        # 롤백
+                        self.currentLineNr = savedLine
+                        self.currentColNr = savedCol
+                        self.currentChar = savedChar
+                        self.currentLexeme = savedLexeme
+                        return tokenType
+
+                    # now consume remaining digits
                     while self.isDigit(self.currentChar):
                         self.takeIt()
-                
-                return tokenType
 
+                    return Token.FLOATLITERAL
+                return tokenType
 
             # 문자열 리터럴: "로 시작하며 동일한 줄 내에서 종료되어야 함.
             case '"':
                 self.takeIt()  # 시작 "
-                while self.currentChar not in ('"', '\n', SourceFile.EOF):
-                    if self.currentChar == '\\':
+                while self.currentChar not in ('"', "\n", SourceFile.EOF):
+                    if self.currentChar == "\\":
                         self.takeIt()  # 이스케이프 문자 소비
-                        if self.currentChar != 'n':
+                        if self.currentChar != "n":
                             print("ERROR: Invalid escape sequence")
                     self.takeIt()
                 if self.currentChar == '"':
@@ -84,9 +110,9 @@ class Scanner:
                     return Token.STRINGLITERAL
 
             # 식별자 또는 키워드: letter 혹은 '_'로 시작하고, 이후 letter, digit, '_' 지속
-            case c if (c.isalpha() or c == '_'):
+            case c if c.isalpha() or c == "_":
                 self.takeIt()
-                while self.currentChar.isalnum() or self.currentChar == '_':
+                while self.currentChar.isalnum() or self.currentChar == "_":
                     self.takeIt()
                 # 이제 현재까지 읽은 lexeme을 사용하여 키워드 여부를 확인합니다.
                 lexeme = self.currentLexeme
@@ -110,27 +136,27 @@ class Scanner:
                     return Token.WHILE
                 else:
                     return Token.ID
-            
+
             # 연산자 및 구분자들
-            case '+':
+            case "+":
                 self.takeIt()
                 return Token.PLUS
-            case '-':
+            case "-":
                 self.takeIt()
                 return Token.MINUS
-            case '*':
+            case "*":
                 self.takeIt()
                 return Token.TIMES
-            case '/':
+            case "/":
                 self.takeIt()  # 첫 번째 '/' 소비
                 # peekChar() 대신에, 다음 문자를 바로 읽어 임시 변수에 저장
                 temp = self.sourceFile.readChar()
-                if temp == '/':
+                if temp == "/":
                     # 주석임: 두 번째 '/'도 소비
                     # temp를 이미 읽었으므로, currentChar 대신 이를 사용
                     self.currentChar = temp
                     # 주석 내용은 줄바꿈 또는 EOF가 나올 때까지 소비
-                    while self.currentChar not in ('\n', SourceFile.EOF):
+                    while self.currentChar not in ("\n", SourceFile.EOF):
                         self.takeIt()
                     return self.scanToken()
                 else:
@@ -138,94 +164,103 @@ class Scanner:
                     self.currentChar = temp
                     return Token.DIV
 
-
-            case '=':
+            case "=":
                 self.takeIt()
-                if self.currentChar == '=':
+                if self.currentChar == "=":
                     self.takeIt()
                     return Token.EQ
                 return Token.ASSIGN
-            case '!':
+            case "!":
                 self.takeIt()
-                if self.currentChar == '=':
+                if self.currentChar == "=":
                     self.takeIt()
                     return Token.NOTEQ
                 return Token.NOT
-            case '<':
+            case "<":
                 self.takeIt()
-                if self.currentChar == '=':
+                if self.currentChar == "=":
                     self.takeIt()
                     return Token.LESSEQ
                 return Token.LESS
-            case '>':
+            case ">":
                 self.takeIt()
-                if self.currentChar == '=':
+                if self.currentChar == "=":
                     self.takeIt()
                     return Token.GREATEREQ
                 return Token.GREATER
-            case '&':
+            case "&":
                 self.takeIt()
-                if self.currentChar == '&':
+                if self.currentChar == "&":
                     self.takeIt()
                     return Token.AND
                 return Token.ERROR
-            case '|':
+            case "|":
                 self.takeIt()
-                if self.currentChar == '|':
+                if self.currentChar == "|":
                     self.takeIt()
                     return Token.OR
                 return Token.ERROR
-            case '{':
+            case "{":
                 self.takeIt()
                 return Token.LEFTBRACE
-            case '}':
+            case "}":
                 self.takeIt()
                 return Token.RIGHTBRACE
-            case '[':
+            case "[":
                 self.takeIt()
                 return Token.LEFTBRACKET
-            case ']':
+            case "]":
                 self.takeIt()
                 return Token.RIGHTBRACKET
-            case '(':
+            case "(":
                 self.takeIt()
                 return Token.LEFTPAREN
-            case ')':
+            case ")":
                 self.takeIt()
                 return Token.RIGHTPAREN
-            case ',':
+            case ",":
                 self.takeIt()
                 return Token.COMMA
-            case ';':
+            case ";":
                 self.takeIt()
                 return Token.SEMICOLON
             case SourceFile.EOF:
-                self.currentLexeme += '$'
+                self.currentLexeme += "$"
+                # 마지막 줄이 끝난 후 다음 줄에서 EOF가 온다고 가정
+                self.currentLineNr += 1
+                self.currentColNr = 1
                 return Token.EOF
             # 그 외: 미리 정의되지 않은 문자 → ERROR 토큰
             case _:
                 self.takeIt()
                 return Token.ERROR
-    
+
     def scan(self):
         self.currentlyScanningToken = False
-        while self.currentChar in (' ', '\f', '\n', '\r', '\t'):
+        while self.currentChar in (" ", "\f", "\n", "\r", "\t"):
             self.takeIt()
-        
+
         self.currentlyScanningToken = True
         self.currentLexeme = ""
+
+        # ✅ 여기가 정확한 토큰 시작 지점
         pos = SourcePos()
         pos.StartLine = self.currentLineNr
         pos.StartCol = self.currentColNr
+
         kind = self.scanToken()
+
         pos.EndLine = self.currentLineNr
         if kind == Token.EOF:
+            pos.StartLine = self.currentLineNr
+            pos.StartCol = self.currentColNr
             pos.EndCol = self.currentColNr
         else:
-            pos.EndCol = self.currentColNr-1
+            pos.EndCol = self.currentColNr - 1
+
         currentToken = Token(kind, self.currentLexeme, pos)
 
         if self.verbose:
             print(currentToken)
-        
+
         return currentToken
