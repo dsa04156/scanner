@@ -49,6 +49,7 @@ class Scanner:
                     self.takeIt()
                     while self.isDigit(self.currentChar):
                         self.takeIt()
+                        
 
                 # 지수 처리 (e 또는 E)
                 if self.currentChar in ("e", "E"):
@@ -140,22 +141,59 @@ class Scanner:
             case "*":
                 self.takeIt()
                 return Token.TIMES
-            case "/":
-                self.takeIt()  # 첫 번째 '/' 소비
-                # peekChar() 대신에, 다음 문자를 바로 읽어 임시 변수에 저장
-                temp = self.sourceFile.readChar()
-                if temp == "/":
-                    # 주석임: 두 번째 '/'도 소비
-                    # temp를 이미 읽었으므로, currentChar 대신 이를 사용
-                    self.currentChar = temp
-                    # 주석 내용은 줄바꿈 또는 EOF가 나올 때까지 소비
-                    while self.currentChar not in ("\n", SourceFile.EOF):
-                        self.takeIt()
+            case '/':
+                # 다음 문자를 미리 읽어서 검사
+                next_char = self.sourceFile.readChar()
+
+                if next_char == '/':
+                    # 한 줄 주석 처리
+                    self.currentChar = self.sourceFile.readChar()
+                    while self.currentChar not in ('\n', SourceFile.EOF):
+                        self.currentChar = self.sourceFile.readChar()
+                    
+                    # 줄 바꿈 후 다음 문자를 소비
+                    if self.currentChar == '\n':
+                        self.currentLineNr += 1
+                        self.currentColNr = 1
+                        self.currentChar = self.sourceFile.readChar()
+                    
+                    # 주석 이후 다음 유효 토큰을 찾기 위해 재귀 호출
+                    return self.scanToken()
+                
+                elif next_char == '*':
+                    # 여러 줄 주석 처리 (/* */)
+                    self.currentChar = self.sourceFile.readChar()
+
+                    while True:
+                        if self.currentChar == SourceFile.EOF:
+                            print("ERROR: Unterminated comment")
+                            return Token.EOF
+
+                        elif self.currentChar == '*':
+                            # '*' 다음 문자를 미리 확인
+                            next_next_char = self.sourceFile.readChar()
+                            if next_next_char == '/':
+                                # 주석 종료 ('*/') 처리 완료
+                                self.currentChar = self.sourceFile.readChar()
+                                break
+                            else:
+                                # '*' 뒤의 문자가 '/'가 아니라면 계속 진행
+                                self.currentChar = next_next_char
+                        else:
+                            # 일반 문자 처리
+                            if self.currentChar == '\n':
+                                self.currentLineNr += 1
+                                self.currentColNr = 1
+                            self.currentChar = self.sourceFile.readChar()
+
+                    # 주석 이후의 토큰을 찾기 위해 재귀 호출
                     return self.scanToken()
                 else:
-                    # 주석이 아니므로, temp를 currentChar에 할당하여 나중에 그대로 사용
-                    self.currentChar = temp
+                    # '/' 단독 처리 (연산자 토큰)
+                    self.takeIt()  # 현재 '/' 소비
+                    self.currentChar = next_char  # 다음 문자 설정
                     return Token.DIV
+
 
             case "=":
                 self.takeIt()
